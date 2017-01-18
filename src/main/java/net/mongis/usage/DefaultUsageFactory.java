@@ -109,11 +109,11 @@ public class DefaultUsageFactory implements UsageFactory{
             sendQueue.onComplete();
         }
         
-        createUsageLog(UsageType.SET, "CPU", UsageLocation.INFO)
+        createUsageLog(UsageType.SET, "CPU", UsageLocation.GENERAL)
                 .setValue(Runtime.getRuntime().availableProcessors())
                 .send();
         
-        createUsageLog(UsageType.SET,"RAM",UsageLocation.INFO)
+        createUsageLog(UsageType.SET,"RAM",UsageLocation.GENERAL)
                 .setValue(Runtime.getRuntime().totalMemory() / 1000 / 1000)
                 .send();
         

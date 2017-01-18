@@ -23,24 +23,18 @@ package net.mongis.usage;
  *
  * @author cyril
  */
-public enum UsageLocation {
-    
-    
-    LUTPanel("LUT Panel")
-    ,SIDE_PANEL("Side panel")
-    ,EXPLORER("Explorer")
-    ,INFO("General")
-    ;
-    
-    
+public class UsageLocation {
+
+    public static UsageLocation GENERAL = new UsageLocation("General");
+
     private final String name;
-    
+
     private UsageLocation(String name) {
         this.name = name;
     }
-    
+
     public String toString() {
         return name;
     }
-    
+
 }
