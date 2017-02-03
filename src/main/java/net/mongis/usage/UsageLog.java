@@ -20,7 +20,15 @@
 package net.mongis.usage;
 
 /**
- *
+ * Usage event log object created by the factory which allow to 
+ * do quick configuration of the object before send
+ * 
+ * anyUsageFactory
+ *  .create(UsageType.SET,"volume",new UsageLocation("Volume slider"))
+ *  .setValue(20)
+ *  .send()
+ * 
+ * 
  * @author cyril
  */
 public interface UsageLog {
