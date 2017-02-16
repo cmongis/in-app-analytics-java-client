@@ -19,7 +19,6 @@
  */
 package net.mongis.usage;
 
-
 import io.reactivex.subjects.PublishSubject;
 import io.socket.client.Socket;
 import java.util.ArrayList;
@@ -30,96 +29,53 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+public class DefaultUsageFactory implements UsageFactory {
 
-/**
- *  Service used to report usage report to the server
- * 
- *  @Parameter
- *  UsageReportService usageService;
- * 
- *  usageService
- *      .createUsage(UsageType.CLICK,"Activity",UsageLocation.SIDE_PANEL)
- *      .send();
- *  
- *  usageService.
- *      .createUsage(UsageType.SWITCH,"Threshold min/max",UsageLocation.LUT_PANEL)
- *      .setValue(true)
- *      .send();
- *  usageService.
- *      createUsage(UsageType.SET,"filter",UsageLocation.EXPLORER)
- *      .setValue("well")
- *      .send();
- * 
- * @author cyril
- */
-
-public class DefaultUsageFactory implements UsageFactory{
-    
-    
-    
-    
-    
-    
     private int idCount = 0;
-    
+
     private final UUID sessionId = UUID.randomUUID();
-  
-   
-    private final PublishSubject<JSONObject> sendQueue = PublishSubject.create();
-    
+
+    private final PublishSubject<MyUsageLog> sendQueue = PublishSubject.create();
+
     private final List<JSONObject> notSent = new ArrayList<>();
-    
+
     private static final String ACCEPTED = "IJFX_USAGE_REPORT_ACCEPTED";
     private static final String DECIDED = "IJFX_USAGE_REPORT_DECIDED";
-   
-    
-    
+
     Preferences prefService = Preferences.userNodeForPackage(DefaultUsageFactory.class);
-    
+
     private Socket socket;
-    
-    
-   
-    
+
     public DefaultUsageFactory(Socket socket) {
-        
-        
+
         initialize();
     }
-    
-    
+
     public void initialize() {
-        
-        
-        
-        
-                
-        
+
         sendQueue
-                
                 .buffer(2, TimeUnit.SECONDS)
-                .filter(list->list.isEmpty() == false)
+                .filter(list -> list.isEmpty() == false)
                 .subscribe(this::handleUsageReports);
-        
-        
-        if(hasDecided() && hasAccepted() == false) {
+
+        if (hasDecided() && hasAccepted() == false) {
             sendQueue.onComplete();
         }
-        
+
         createUsageLog(UsageType.SET, "CPU", UsageLocation.GENERAL)
                 .setValue(Runtime.getRuntime().availableProcessors())
                 .send();
-        
-        createUsageLog(UsageType.SET,"RAM",UsageLocation.GENERAL)
+
+        createUsageLog(UsageType.SET, "RAM", UsageLocation.GENERAL)
                 .setValue(Runtime.getRuntime().totalMemory() / 1000 / 1000)
                 .send();
-        
+
     }
-    
-    
+
     @Override
     public UsageLog createUsageLog(UsageType type, String name, UsageLocation location) {
         return new MyUsageLog(type, name, location);
@@ -129,96 +85,112 @@ public class DefaultUsageFactory implements UsageFactory{
     public boolean hasDecided() {
         return prefService.getBoolean(DECIDED, false);
     }
-    
+
     private boolean hasAccepted() {
         return prefService.getBoolean(ACCEPTED, false);
     }
-    
-   private Socket getSocket() {
-       return socket;
-   }
+
+    private Socket getSocket() {
+        return socket;
+    }
 
     @Override
     public void setDecision(Boolean accept) {
-        prefService.putBoolean(DECIDED,true);
+        prefService.putBoolean(DECIDED, true);
         prefService.putBoolean(ACCEPTED, accept.booleanValue());
-        
-        if(accept == false) {
+
+        if (accept == false) {
             sendQueue.onComplete();
         }
-        
+
     }
-    
-    
-     
-    
+
     private class MyUsageLog extends AbstractUsageLog {
-    
+
+        private final int orderId;
+
         public MyUsageLog(UsageType type, String name, UsageLocation location) {
+
             super(type, name, location);
+
+            orderId = idCount++;
+
         }
-    
+
         @Override
         public UsageLog send() {
-            if(!hasDecided() || hasAccepted()) {
-                sendQueue.onNext(toJSON());
+            if (!hasDecided() || hasAccepted()) {
+                sendQueue.onNext(this);
             }
-            
+
             return this;
         }
-        
+
         @Override
         public JSONObject toJSON() {
-           
-            
+
             try {
                 return super
                         .toJSON()
                         .put("session_id", sessionId.toString())
-                        .put("position",idCount++);
+                        .put("position", getOrderId());
             } catch (JSONException ex) {
                 Logger.getLogger(DefaultUsageFactory.class.getName()).log(Level.SEVERE, null, ex);
             }
             return null;
         }
-        
-    }   
-    
-    public void handleUsageReports(List<JSONObject> objects) {
-        
-        
+
+        public int getOrderId() {
+            return orderId;
+        }
+
+    }
+
+    public void handleUsageReports(List<MyUsageLog> objects) {
+
         // if the user decided to not send
-        if(hasDecided() && hasAccepted() == false) return;
-        
-        
-        notSent.addAll(objects);
-       
-       
-        
-        if(hasDecided() == false) {
+        if (hasDecided() && hasAccepted() == false) {
             return;
         }
-        Iterator<JSONObject> iterator = notSent.iterator();
-        
-        // emptying the list of object to send
-        while(iterator.hasNext()) {
-            
-            JSONObject object = iterator.next();
-            
-            // if the socket is not available, we abort
-            if(getSocket() == null || getSocket().connected() == false) {
-                return;
-            }
-            // if not, we send the usage and remove it from the send queue
-            getSocket().emit("usage",object);
-            
-            iterator.remove();
-            
+
+        List<MyUsageLog> notSent = objects
+                .stream()
+                .sorted((usage1, usage2) -> Integer.compare(usage1.getOrderId(), usage2.getOrderId()))
+                .collect(Collectors.toList());
+        if (hasDecided() == false) {
+            return;
         }
-       
+        boolean abort = false;
+
+        for (MyUsageLog usage : objects) {
+
+            // if the socket is not available, we abort
+            if (getSocket() == null || getSocket().connected() == false) {
+
+                abort = true;
+            }
+
+            // if it has been aborted once, all the following messages has to be put
+            // back in the stack in order to avoid sending messages in disorder
+            // (even if it's wouldn't be a problem later since there is always
+            // an order id)
+            if (abort) {
+                sendQueue.onNext(usage);
+            } else {
+                try {
+                    getSocket().emit("usage", usage.toJSON());
+                    
+                }
+                // if sending fails for an other reason, we also pospone
+                // sending the event and abort the current procedure
+                catch (Exception e) {
+                    e.printStackTrace();
+                    sendQueue.onNext(usage);
+                    abort = true;
+                }
+
+            }
+        }
     }
-    
-    
-  
-    
+
 }

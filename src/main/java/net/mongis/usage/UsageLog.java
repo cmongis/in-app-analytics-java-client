@@ -33,6 +33,7 @@ package net.mongis.usage;
  */
 public interface UsageLog {
     
+    int getOrderId();
     UsageLog setValue(Object value);
     UsageLog send();
     
