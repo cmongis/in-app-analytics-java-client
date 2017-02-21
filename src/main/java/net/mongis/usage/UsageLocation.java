@@ -36,5 +36,9 @@ public class UsageLocation {
     public String toString() {
         return name;
     }
+    
+    public static UsageLocation get(String name) {
+        return new UsageLocation(name);
+    }
 
 }
