@@ -26,10 +26,10 @@ package net.mongis.usage;
 public class UsageLocation {
 
     public static UsageLocation GENERAL = new UsageLocation("General");
-
+    
     private final String name;
 
-    private UsageLocation(String name) {
+    public UsageLocation(String name) {
         this.name = name;
     }
 
