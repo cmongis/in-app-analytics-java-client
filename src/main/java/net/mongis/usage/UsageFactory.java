@@ -45,7 +45,7 @@ public interface UsageFactory {
 
     
     public boolean hasDecided();
-    public void setDecision(Boolean accept);
+    public UsageFactory setDecision(Boolean accept);
     
     /**
      * 

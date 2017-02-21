@@ -21,8 +21,8 @@ package net.mongis.usage;
 
 import io.reactivex.subjects.PublishSubject;
 import io.socket.client.Socket;
+import java.io.File;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -50,8 +50,10 @@ public class DefaultUsageFactory implements UsageFactory {
 
     private Socket socket;
 
-    public DefaultUsageFactory(Socket socket) {
+    private static final boolean debug = new File("./src").exists();
 
+    public DefaultUsageFactory(Socket socket) {
+        this.socket = socket;
         initialize();
     }
 
@@ -95,13 +97,14 @@ public class DefaultUsageFactory implements UsageFactory {
     }
 
     @Override
-    public void setDecision(Boolean accept) {
+    public UsageFactory setDecision(Boolean accept) {
         prefService.putBoolean(DECIDED, true);
         prefService.putBoolean(ACCEPTED, accept.booleanValue());
 
         if (accept == false) {
             sendQueue.onComplete();
         }
+        return this;
 
     }
 
@@ -132,7 +135,10 @@ public class DefaultUsageFactory implements UsageFactory {
             try {
                 return super
                         .toJSON()
-                        .put("session_id", sessionId.toString())
+                        .put("session_id", new StringBuilder()
+                                .append(sessionId.toString())
+                                .append(debug ? "debug" : "") // appending debug if it's in a debug environment
+                                .toString())
                         .put("position", getOrderId());
             } catch (JSONException ex) {
                 Logger.getLogger(DefaultUsageFactory.class.getName()).log(Level.SEVERE, null, ex);
@@ -179,9 +185,8 @@ public class DefaultUsageFactory implements UsageFactory {
             } else {
                 try {
                     getSocket().emit("usage", usage.toJSON());
-                    
-                }
-                // if sending fails for an other reason, we also pospone
+
+                } // if sending fails for an other reason, we also pospone
                 // sending the event and abort the current procedure
                 catch (Exception e) {
                     e.printStackTrace();
