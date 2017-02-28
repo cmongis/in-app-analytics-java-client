@@ -43,18 +43,26 @@ public class DefaultUsageFactory implements UsageFactory {
 
     private final List<JSONObject> notSent = new ArrayList<>();
 
-    private static final String ACCEPTED = "IJFX_USAGE_REPORT_ACCEPTED";
-    private static final String DECIDED = "IJFX_USAGE_REPORT_DECIDED";
-
-    Preferences prefService = Preferences.userNodeForPackage(DefaultUsageFactory.class);
-
+   
     private Socket socket;
 
+   
+    
     private static final boolean debug = new File("./src").exists();
 
-    public DefaultUsageFactory(Socket socket) {
+    private DecisionStorage decisionStorage = new NullDecisionStorage();
+    
+    
+   
+    public DefaultUsageFactory(Socket socket,DecisionStorage storage) {
         this.socket = socket;
         initialize();
+        this.decisionStorage = storage;
+    }
+    
+    
+    private DecisionStorage decisionStorage() {
+        return  decisionStorage;
     }
 
     public void initialize() {
@@ -63,19 +71,6 @@ public class DefaultUsageFactory implements UsageFactory {
                 .buffer(2, TimeUnit.SECONDS)
                 .filter(list -> list.isEmpty() == false)
                 .subscribe(this::handleUsageReports);
-
-        if (hasDecided() && hasAccepted() == false) {
-            sendQueue.onComplete();
-        }
-
-        createUsageLog(UsageType.SET, "CPU", UsageLocation.GENERAL)
-                .setValue(Runtime.getRuntime().availableProcessors())
-                .send();
-
-        createUsageLog(UsageType.SET, "RAM", UsageLocation.GENERAL)
-                .setValue(Runtime.getRuntime().totalMemory() / 1000 / 1000)
-                .send();
-
     }
 
     @Override
@@ -85,11 +80,11 @@ public class DefaultUsageFactory implements UsageFactory {
 
     @Override
     public boolean hasDecided() {
-        return prefService.getBoolean(DECIDED, false);
+        return decisionStorage().hasDecided();
     }
 
     private boolean hasAccepted() {
-        return prefService.getBoolean(ACCEPTED, false);
+        return decisionStorage().hasAccepted();
     }
 
     private Socket getSocket() {
@@ -98,8 +93,7 @@ public class DefaultUsageFactory implements UsageFactory {
 
     @Override
     public UsageFactory setDecision(Boolean accept) {
-        prefService.putBoolean(DECIDED, true);
-        prefService.putBoolean(ACCEPTED, accept.booleanValue());
+        decisionStorage().setDecision(accept.booleanValue());
 
         if (accept == false) {
             sendQueue.onComplete();
@@ -136,8 +130,9 @@ public class DefaultUsageFactory implements UsageFactory {
                 return super
                         .toJSON()
                         .put("session_id", new StringBuilder()
+                                .append(debug ? "debug-" : "")
                                 .append(sessionId.toString())
-                                .append(debug ? "debug" : "") // appending debug if it's in a debug environment
+                                 // appending debug if it's in a debug environment
                                 .toString())
                         .put("position", getOrderId());
             } catch (JSONException ex) {
@@ -156,6 +151,9 @@ public class DefaultUsageFactory implements UsageFactory {
 
         // if the user decided to not send
         if (hasDecided() && hasAccepted() == false) {
+            if(sendQueue.hasComplete() == false) {
+                sendQueue.onComplete();
+            }
             return;
         }
 
