@@ -11,19 +11,24 @@ package net.mongis.usage;
  */
 public class NullDecisionStorage implements DecisionStorage{
 
+    boolean decided = false;
+    boolean hasAccepted = false;
+    
+    
     @Override
     public boolean hasDecided() {
-       return false;
+       return decided;
     }
 
     @Override
     public boolean hasAccepted() {
-       return false;
+       return hasAccepted;
     }
 
     @Override
     public void setDecision(boolean decision) {
-       
+       decided = true;
+       hasAccepted = decision;
     }
     
 }

@@ -26,9 +26,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.prefs.Preferences;
 import java.util.stream.Collectors;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -169,21 +169,20 @@ public class DefaultUsageFactory implements UsageFactory {
             return;
         }
 
+        
+        Consumer<MyUsageLog> delayMethod = delayMethod = sendQueue::onNext;
+        
         List<MyUsageLog> notSent = objects
                 .stream()
                 .sorted((usage1, usage2) -> Integer.compare(usage1.getOrderId(), usage2.getOrderId()))
                 .collect(Collectors.toList());
-        if (hasDecided() == false) {
-            return;
-        }
+        
+        
+       
         boolean delaySend = false;
 
-        
-        
-        
-        for (MyUsageLog usage : objects) {
-
-            // if the socket is not available, we abort
+        for (MyUsageLog usage : notSent) {
+                      // if the socket is not available, we abort
             if (getSocket() == null || getSocket().connected() == false || hasDecided() == false) {
                 logger.info("Usage logging delaid");
                 delaySend = true;
@@ -194,16 +193,21 @@ public class DefaultUsageFactory implements UsageFactory {
             // (even if it's wouldn't be a problem later since there is always
             // an order id)
             if (delaySend) {
-                sendQueue.onNext(usage);
+                delayMethod.accept(usage);
             } else {
+                
+                logger.info("Treaing Usage log #"+usage.getOrderId());
+
+                
                 try {
+                   
                     getSocket().emit("usage", usage.toJSON());
                     logger.info("Usage log sent #"+usage.getOrderId());
                 } // if sending fails for an other reason, we also pospone
                 // sending the event and abort the current procedure
                 catch (Exception e) {
                     e.printStackTrace();
-                    sendQueue.onNext(usage);
+                    delayMethod.accept(usage);
                     delaySend = true;
                 }
 
