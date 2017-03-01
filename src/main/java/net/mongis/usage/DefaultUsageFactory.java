@@ -46,7 +46,7 @@ public class DefaultUsageFactory implements UsageFactory {
    
     private Socket socket;
 
-   
+   private final Logger logger = Logger.getLogger(this.getClass().getName());
     
     private static final boolean debug = new File("./src").exists();
 
@@ -58,6 +58,7 @@ public class DefaultUsageFactory implements UsageFactory {
         this.socket = socket;
         initialize();
         this.decisionStorage = storage;
+        logger.info("Usage factory created");
     }
     
     
@@ -66,11 +67,13 @@ public class DefaultUsageFactory implements UsageFactory {
     }
 
     public void initialize() {
-
+       
         sendQueue
                 .buffer(2, TimeUnit.SECONDS)
                 .filter(list -> list.isEmpty() == false)
                 .subscribe(this::handleUsageReports);
+        
+         logger.info("Initialized");
     }
 
     @Override
@@ -93,6 +96,9 @@ public class DefaultUsageFactory implements UsageFactory {
 
     @Override
     public UsageFactory setDecision(Boolean accept) {
+        
+        logger.info("Setting decision = "+accept);
+        
         decisionStorage().setDecision(accept.booleanValue());
 
         if (accept == false) {
@@ -116,7 +122,9 @@ public class DefaultUsageFactory implements UsageFactory {
 
         @Override
         public UsageLog send() {
+            logger.info(String.format("Sending Usage log (decided=%s,accepted=%s", hasDecided(),hasAccepted()));
             if (!hasDecided() || hasAccepted()) {
+                logger.info("Usage log added to queue");
                 sendQueue.onNext(this);
             }
 
@@ -149,11 +157,15 @@ public class DefaultUsageFactory implements UsageFactory {
 
     public void handleUsageReports(List<MyUsageLog> objects) {
 
+        
+        logger.info("Treating usage logs : "+objects.size());
+        
         // if the user decided to not send
         if (hasDecided() && hasAccepted() == false) {
             if(sendQueue.hasComplete() == false) {
                 sendQueue.onComplete();
             }
+            logger.info("Aborting usage logging");
             return;
         }
 
@@ -164,32 +176,35 @@ public class DefaultUsageFactory implements UsageFactory {
         if (hasDecided() == false) {
             return;
         }
-        boolean abort = false;
+        boolean delaySend = false;
 
+        
+        
+        
         for (MyUsageLog usage : objects) {
 
             // if the socket is not available, we abort
-            if (getSocket() == null || getSocket().connected() == false) {
-
-                abort = true;
+            if (getSocket() == null || getSocket().connected() == false || hasDecided() == false) {
+                logger.info("Usage logging delaid");
+                delaySend = true;
             }
 
             // if it has been aborted once, all the following messages has to be put
             // back in the stack in order to avoid sending messages in disorder
             // (even if it's wouldn't be a problem later since there is always
             // an order id)
-            if (abort) {
+            if (delaySend) {
                 sendQueue.onNext(usage);
             } else {
                 try {
                     getSocket().emit("usage", usage.toJSON());
-
+                    logger.info("Usage log sent #"+usage.getOrderId());
                 } // if sending fails for an other reason, we also pospone
                 // sending the event and abort the current procedure
                 catch (Exception e) {
                     e.printStackTrace();
                     sendQueue.onNext(usage);
-                    abort = true;
+                    delaySend = true;
                 }
 
             }
