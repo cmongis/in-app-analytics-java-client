@@ -19,7 +19,6 @@
  */
 package net.mongis.usage;
 
-import io.reactivex.subjects.PublishSubject;
 import io.socket.client.Socket;
 import java.io.File;
 import java.util.ArrayList;
@@ -32,6 +31,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.json.JSONException;
 import org.json.JSONObject;
+import rx.subjects.PublishSubject;
 
 public class DefaultUsageFactory implements UsageFactory {
 
