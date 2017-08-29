@@ -102,7 +102,7 @@ public class DefaultUsageFactory implements UsageFactory {
         decisionStorage().setDecision(accept.booleanValue());
 
         if (accept == false) {
-            sendQueue.onComplete();
+            sendQueue.onCompleted();
         }
         return this;
 
@@ -162,8 +162,8 @@ public class DefaultUsageFactory implements UsageFactory {
         
         // if the user decided to not send
         if (hasDecided() && hasAccepted() == false) {
-            if(sendQueue.hasComplete() == false) {
-                sendQueue.onComplete();
+            if(sendQueue.hasCompleted()== false) {
+                sendQueue.onCompleted();
             }
             logger.info("Aborting usage logging");
             return;
